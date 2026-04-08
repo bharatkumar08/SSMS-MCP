@@ -103,62 +103,50 @@ TOOLS = [
 # ── Database helper ───────────────────────────────────────────────────────────
 
 class DatabaseManager:
-    """Manages SQL Server connections and query execution."""
+    """Manages SQL Server connections and query execution via pymssql (no ODBC needed)."""
 
     def __init__(self):
         self._engine = None
 
-    def _get_connection_string(self) -> str:
-        server = os.getenv("SQL_SERVER")        # e.g. yourserver.database.windows.net
-        database = os.getenv("SQL_DATABASE")
-        username = os.getenv("SQL_USERNAME")
-        password = os.getenv("SQL_PASSWORD")
-        
-        # Azure SQL always needs this exact driver string
-        driver = "ODBC+Driver+18+for+SQL+Server"
-        
-        return (
-            f"mssql+pyodbc://{username}:{password}@{server}:1433/{database}"
-            f"?driver={driver}"
-            f"&Encrypt=yes"
-            f"&TrustServerCertificate=no"
-            f"&Connection+Timeout=30"
-        )
-        # server = os.getenv("SQL_SERVER", "localhost")
-        # database = os.getenv("SQL_DATABASE", "master")
-        # username = os.getenv("SQL_USERNAME", "")
-        # password = os.getenv("SQL_PASSWORD", "")
-        # driver = os.getenv("SQL_DRIVER", "ODBC Driver 18 for SQL Server")
-        # trusted = os.getenv("SQL_TRUSTED_CONNECTION", "0") == "1"
-
-        # driver_encoded = driver.replace(" ", "+")
-        # if trusted:
-        #     return (
-        #         f"mssql+pyodbc://{server}/{database}"
-        #         f"?driver={driver_encoded}&trusted_connection=yes"
-        #     )
-        
-        # return (
-        #     f"mssql+pyodbc://{username}:{password}@{server}/{database}"
-        #     f"?driver={driver_encoded}"
-        # )
-
     def get_engine(self):
         if self._engine is None:
             from sqlalchemy import create_engine
-            conn_str = self._get_connection_string()
-            self._engine = create_engine(conn_str, pool_pre_ping=True, pool_size=5)
+
+            server   = os.getenv("SQL_SERVER")    # e.g. yourserver.database.windows.net
+            database = os.getenv("SQL_DATABASE")
+            username = os.getenv("SQL_USERNAME")
+            password = os.getenv("SQL_PASSWORD")
+
+            if not all([server, database, username, password]):
+                raise ValueError(
+                    "Missing one or more required env vars: "
+                    "SQL_SERVER, SQL_DATABASE, SQL_USERNAME, SQL_PASSWORD"
+                )
+
+            # pymssql handles TLS to Azure SQL automatically — no driver install needed
+            conn_str = (
+                f"mssql+pymssql://{username}:{password}"
+                f"@{server}:1433/{database}"
+            )
+            self._engine = create_engine(
+                conn_str,
+                pool_pre_ping=True,
+                pool_size=5,
+                connect_args={"tds_version": "7.4"},  # required for Azure SQL
+            )
         return self._engine
 
     def execute_query(self, query: str, max_rows: int = 500) -> dict:
         import pandas as pd
         from sqlalchemy import text
+
         engine = self.get_engine()
         with engine.connect() as conn:
             result = conn.execute(text(query))
             columns = list(result.keys())
             rows = result.fetchmany(max_rows)
             df = pd.DataFrame(rows, columns=columns)
+
         return {
             "columns": columns,
             "rows": df.to_dict(orient="records"),
@@ -168,6 +156,7 @@ class DatabaseManager:
 
     def get_schema(self, include_row_counts: bool = True) -> dict:
         from sqlalchemy import text
+
         engine = self.get_engine()
 
         schema_query = """
@@ -260,6 +249,7 @@ def handle_get_database_schema(args: dict) -> dict:
         schema = db_manager.get_schema(include_row_counts=include_counts)
         return {"success": True, "schema": schema, "table_count": len(schema)}
     except Exception as exc:
+        logger.exception("get_database_schema failed")
         return {"success": False, "error": str(exc)}
 
 
@@ -267,7 +257,6 @@ def handle_execute_sql_query(args: dict) -> dict:
     query = args.get("query", "").strip()
     max_rows = min(int(args.get("max_rows", 500)), 5000)
 
-    # Safety check
     first_token = query.upper().split()[0] if query else ""
     if first_token not in ("SELECT", "WITH"):
         return {
@@ -281,6 +270,7 @@ def handle_execute_sql_query(args: dict) -> dict:
         result["query"] = query
         return result
     except Exception as exc:
+        logger.exception("execute_sql_query failed")
         return {"success": False, "error": str(exc), "query": query}
 
 
@@ -293,6 +283,7 @@ def handle_get_table_sample(args: dict) -> dict:
         result["success"] = True
         return result
     except Exception as exc:
+        logger.exception("get_table_sample failed")
         return {"success": False, "error": str(exc)}
 
 
@@ -301,7 +292,6 @@ def handle_validate_sql_query(args: dict) -> dict:
     issues = []
 
     upper = query.upper()
-    # Dangerous keyword check
     dangerous = ["INSERT", "UPDATE", "DELETE", "DROP", "TRUNCATE", "ALTER", "CREATE", "EXEC", "EXECUTE"]
     for kw in dangerous:
         if kw in upper.split():
@@ -315,7 +305,7 @@ def handle_validate_sql_query(args: dict) -> dict:
     if issues:
         return {"valid": False, "issues": issues, "query": query}
 
-    # Try a SET PARSEONLY (dry-run) via SSMS
+    # Syntax check via SET PARSEONLY
     try:
         from sqlalchemy import text
         engine = db_manager.get_engine()
