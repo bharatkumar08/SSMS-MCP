@@ -109,23 +109,39 @@ class DatabaseManager:
         self._engine = None
 
     def _get_connection_string(self) -> str:
-        server = os.getenv("SQL_SERVER", "localhost")
-        database = os.getenv("SQL_DATABASE", "master")
-        username = os.getenv("SQL_USERNAME", "")
-        password = os.getenv("SQL_PASSWORD", "")
-        driver = os.getenv("SQL_DRIVER", "ODBC Driver 18 for SQL Server")
-        trusted = os.getenv("SQL_TRUSTED_CONNECTION", "0") == "1"
-
-        driver_encoded = driver.replace(" ", "+")
-        if trusted:
-            return (
-                f"mssql+pyodbc://{server}/{database}"
-                f"?driver={driver_encoded}&trusted_connection=yes"
-            )
+        server = os.getenv("SQL_SERVER")        # e.g. yourserver.database.windows.net
+        database = os.getenv("SQL_DATABASE")
+        username = os.getenv("SQL_USERNAME")
+        password = os.getenv("SQL_PASSWORD")
+        
+        # Azure SQL always needs this exact driver string
+        driver = "ODBC+Driver+18+for+SQL+Server"
+        
         return (
-            f"mssql+pyodbc://{username}:{password}@{server}/{database}"
-            f"?driver={driver_encoded}"
+            f"mssql+pyodbc://{username}:{password}@{server}:1433/{database}"
+            f"?driver={driver}"
+            f"&Encrypt=yes"
+            f"&TrustServerCertificate=no"
+            f"&Connection+Timeout=30"
         )
+        # server = os.getenv("SQL_SERVER", "localhost")
+        # database = os.getenv("SQL_DATABASE", "master")
+        # username = os.getenv("SQL_USERNAME", "")
+        # password = os.getenv("SQL_PASSWORD", "")
+        # driver = os.getenv("SQL_DRIVER", "ODBC Driver 18 for SQL Server")
+        # trusted = os.getenv("SQL_TRUSTED_CONNECTION", "0") == "1"
+
+        # driver_encoded = driver.replace(" ", "+")
+        # if trusted:
+        #     return (
+        #         f"mssql+pyodbc://{server}/{database}"
+        #         f"?driver={driver_encoded}&trusted_connection=yes"
+        #     )
+        
+        # return (
+        #     f"mssql+pyodbc://{username}:{password}@{server}/{database}"
+        #     f"?driver={driver_encoded}"
+        # )
 
     def get_engine(self):
         if self._engine is None:
