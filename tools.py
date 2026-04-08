@@ -113,7 +113,7 @@ class DatabaseManager:
         database = os.getenv("SQL_DATABASE", "master")
         username = os.getenv("SQL_USERNAME", "")
         password = os.getenv("SQL_PASSWORD", "")
-        driver = os.getenv("SQL_DRIVER", "ODBC Driver 17 for SQL Server")
+        driver = os.getenv("SQL_DRIVER", "ODBC Driver 18 for SQL Server")
         trusted = os.getenv("SQL_TRUSTED_CONNECTION", "0") == "1"
 
         driver_encoded = driver.replace(" ", "+")
