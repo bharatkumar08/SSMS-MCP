@@ -19,7 +19,9 @@ openai>=2.0.0
 # pyodbc 5.3.0+ has a cp314 Windows wheel.
 # Also requires ODBC Driver 17 or 18 on the OS:
 # https://learn.microsoft.com/sql/connect/odbc/download-odbc-driver-for-sql-server
-pyodbc>=5.3.0
+# pyodbc>=5.3.0
+# Add this:
+pymssql>=2.3.0
 sqlalchemy>=2.0.36
 
 # ── Data / charts ─────────────────────────────────────────────
