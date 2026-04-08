@@ -18,7 +18,7 @@ import uvicorn
 
 load_dotenv()
 
-from mcp_server.tools import TOOLS, call_tool  # noqa: E402
+from tools import TOOLS, call_tool  # noqa: E402
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [MCP] %(levelname)s %(message)s")
 logger = logging.getLogger(__name__)
