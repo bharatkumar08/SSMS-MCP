@@ -93,7 +93,7 @@ app = Starlette(routes=[
 
 def run():
     host = "0.0.0.0"  # required for Azure
-    port = int(os.getenv("MCP_PORT", "8000"))  # Azure provides PORT
+    port = int(os.getenv("MCP_PORT", "8001"))  # Azure provides PORT
 
     logger.info("Starting MCP server on %s:%s", host, port)
     uvicorn.run(app, host=host, port=port, log_level="warning")
